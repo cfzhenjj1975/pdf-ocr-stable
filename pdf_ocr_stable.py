@@ -88,32 +88,32 @@ def get_optimal_config(gpu_available):
     if gpu_available:
         gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
         
-        # 根据显存大小推荐配置
+        # 优化：根据显存大小推荐更高性能配置
         if gpu_memory_gb >= 24:
             return {
-                'gpu_memory_gb': 16,
-                'max_workers': 6,
+                'gpu_memory_gb': 18,
+                'max_workers': 8,
                 'image_max_size': 2048,
                 'dpi': 300
             }
         elif gpu_memory_gb >= 16:
             return {
-                'gpu_memory_gb': 9,
-                'max_workers': 3,
+                'gpu_memory_gb': 11,  # 优化：从 9GB 提升到 11GB
+                'max_workers': 5,      # 优化：从 3 线程提升到 5 线程
                 'image_max_size': 2048,
                 'dpi': 300
             }
         elif gpu_memory_gb >= 12:
             return {
-                'gpu_memory_gb': 7,
-                'max_workers': 2,
+                'gpu_memory_gb': 8,
+                'max_workers': 4,
                 'image_max_size': 1600,
                 'dpi': 256
             }
         else:
             return {
-                'gpu_memory_gb': 5,
-                'max_workers': 2,
+                'gpu_memory_gb': 6,
+                'max_workers': 3,
                 'image_max_size': 1280,
                 'dpi': 200
             }
@@ -139,7 +139,7 @@ class OCRConfig:
         self.gpu_available = gpu_available
         self.gpu_memory_gb = optimal['gpu_memory_gb']
         
-        # 并行配置
+        # 并行配置 - 优化：增加线程数提升速度
         self.max_workers = optimal['max_workers']
         self.num_threads = min(multiprocessing.cpu_count(), 4)
         
@@ -147,10 +147,11 @@ class OCRConfig:
         self.image_max_size = optimal['image_max_size']
         self.dpi = optimal['dpi']
         
-        # 稳定性配置
+        # 稳定性配置 - 优化：减少不必要的清理
         self.clean_interval = 1  # 每页清理显存
+        self.clean_after_ocr = False  # 优化：只在 OCR 前清理（减少 50% 清理次数）
         self.max_retries = 3     # 最大重试次数
-        self.retry_delay = 1.0   # 重试等待时间（秒）
+        self.retry_delay = 0.5   # 优化：减少重试等待时间（从 1 秒降到 0.5 秒）
         
         # 输出配置
         self.output_dir = "./ocr_output"
@@ -179,6 +180,7 @@ class OCRConfig:
         print(f"  PDF DPI: {self.dpi}")
         print(f"  显存清理间隔：每 {self.clean_interval} 页")
         print(f"  最大重试次数：{self.max_retries}")
+        print(f"  重试等待时间：{self.retry_delay}秒")
         print(f"  输出目录：{self.output_dir}")
         print("=" * 60 + "\n")
 
@@ -234,8 +236,9 @@ class PaddleOCREngine:
                 
                 result = self.engine.ocr(image, cls=True)[0]
                 
-                # OCR 后清理显存
-                self._clear_gpu_memory()
+                # 优化：只在重试时才清理 OCR 后显存（减少 50% 清理次数）
+                if self.config.clean_after_ocr:
+                    self._clear_gpu_memory()
                 
                 if not result:
                     return ""
@@ -502,12 +505,60 @@ def main():
             pdf_files.append(input_path)
     else:
         pdf_files = list(input_path.rglob("*.pdf"))
-    
+
     if not pdf_files:
         print(f"错误：未找到 PDF 文件：{input_path}")
         sys.exit(1)
+
+    # 优化：跳过已处理完成且无错误的文件
+    print(f"找到 {len(pdf_files)} 个 PDF 文件\n")
     
-    print(f"找到 {len(pdf_files)} 个 PDF 文件待处理\n")
+    # 检查已完成的文件
+    output_dir_check = Path(config.output_dir)
+    pending_files = []
+    skipped_files = []
+    
+    for pdf_file in pdf_files:
+        pdf_name = pdf_file.stem
+        output_file = output_dir_check / f"{pdf_name}_ocr.txt"
+        
+        if output_file.exists():
+            # 检查是否有错误
+            total_pages = 0
+            error_count = 0
+            
+            try:
+                with open(output_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    total_pages = content.count("=== 第")
+                    error_count = content.count("OCR 错误")
+                
+                # 如果无错误，跳过此文件
+                if error_count == 0 and total_pages > 0:
+                    skipped_files.append((pdf_name, total_pages))
+                    continue
+            except:
+                pass
+        
+        # 需要处理的文件
+        pending_files.append(pdf_file)
+    
+    # 显示跳过的文件
+    if skipped_files:
+        print("=" * 60)
+        print("✅ 以下文件已完成且无错误，将跳过处理:")
+        print("=" * 60)
+        for name, pages in skipped_files:
+            print(f"  ✓ {name} ({pages}页)")
+        print(f"\n共跳过 {len(skipped_files)} 个文件\n")
+    
+    pdf_files = pending_files
+    
+    if not pdf_files:
+        print("所有文件已处理完成，无需重新处理！")
+        sys.exit(0)
+    
+    print(f"待处理文件：{len(pdf_files)} 个\n")
     
     # 创建输出目录
     output_dir = Path(config.output_dir)
