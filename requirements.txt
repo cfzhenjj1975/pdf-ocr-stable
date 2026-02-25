@@ -1,0 +1,30 @@
+# PDF OCR Pro - Requirements
+
+# 基础依赖
+numpy>=1.21.0
+opencv-python>=4.5.0
+Pillow>=9.0.0
+PyMuPDF>=1.19.0
+python-docx>=0.8.11
+
+# PaddleOCR (GPU 版)
+paddlepaddle-gpu==2.6.0
+paddleocr==2.7.3
+
+# 后处理
+regex
+
+# 监控工具
+psutil
+
+# vLLM + Qwen2.5-VL (可选，混合架构需要)
+vllm>=0.4.0
+qwen-vl-utils
+transformers>=4.45.0
+accelerate
+requests
+
+# 开发依赖
+pytest
+black
+flake8

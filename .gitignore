@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OCR 输出
+ocr_output*/
+*.docx
+ocr_status.txt
+ocr_run*.log
+
+# 测试
+test_*.py
+test_*.txt
+test_*.log
+*_output.log
+*_output.txt
+
+# 临时文件
+temp/
+*.tmp
+*.bak
+
+# 缓存
+.cache/
+*.cache
+
+# 文档生成
+*.html
+!README.md
+
+# 大型数据文件
+*.pdf
+*.jpg
+*.png
